@@ -125,7 +125,7 @@ services:
     image: openaev/platform:latest
     container_name: openaev
     ports:
-      - "${APP_PORT:-8081}:8080"
+      - "${APP_PORT}:8080"
     depends_on:
       postgres:
         condition: service_healthy
