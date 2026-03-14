@@ -3,19 +3,7 @@
 #
 # Fill in every value marked  ← CHANGE THIS  before deploying.
 # All secrets can alternatively be set as Coolify environment variables.
-#
-# Services:
-#   openaev      – main platform  (port 8080)
-#   postgres     – relational store
-#   elasticsearch – search / index engine
-#   rabbitmq     – message queue
-#   minio        – S3-compatible object storage
 ###############################################################################
-
-x-openaev-common: &openaev-common
-  restart: unless-stopped
-  networks:
-    - openaev-net
 
 services:
 
@@ -23,9 +11,12 @@ services:
   # PostgreSQL
   # ─────────────────────────────────────────────────────────────────────────
   postgres:
-    <<: *openaev-common
     image: postgres:15-alpine
-    container_name: openaev-postgres
+    restart: unless-stopped
+    networks:
+      openaev-net:
+        aliases:
+          - postgres
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-openaev}
       POSTGRES_USER:     ${POSTGRES_USER:-openaev}
@@ -42,37 +33,46 @@ services:
   # Elasticsearch
   # ─────────────────────────────────────────────────────────────────────────
   elasticsearch:
-    <<: *openaev-common
     image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
-    container_name: openaev-elasticsearch
+    restart: unless-stopped
+    networks:
+      openaev-net:
+        aliases:
+          - elasticsearch
     environment:
-      discovery.type:               single-node
-      xpack.security.enabled:       "false"
-      ES_JAVA_OPTS:                 "-Xms1g -Xmx1g"
-      cluster.name:                 openaev-cluster
-      bootstrap.memory_lock:        "true"
+      discovery.type:         single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS:           "-Xms512m -Xmx512m"
+      cluster.name:           openaev-cluster
     ulimits:
       memlock:
         soft: -1
         hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      test: ["CMD-SHELL", "curl -sf 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
       interval: 20s
-      timeout: 10s
-      retries: 10
+      timeout: 15s
+      retries: 20
+      start_period: 60s
 
   # ─────────────────────────────────────────────────────────────────────────
   # RabbitMQ
   # ─────────────────────────────────────────────────────────────────────────
   rabbitmq:
-    <<: *openaev-common
     image: rabbitmq:3.13-management-alpine
-    container_name: openaev-rabbitmq
+    restart: unless-stopped
+    networks:
+      openaev-net:
+        aliases:
+          - rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-openaev}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}   # ← CHANGE THIS
+      RABBITMQ_DEFAULT_USER:  ${RABBITMQ_USER:-openaev}
+      RABBITMQ_DEFAULT_PASS:  ${RABBITMQ_PASSWORD:-changeme}   # ← CHANGE THIS
       RABBITMQ_DEFAULT_VHOST: openaev
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -80,16 +80,20 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   # ─────────────────────────────────────────────────────────────────────────
   # MinIO  (S3-compatible object storage)
   # ─────────────────────────────────────────────────────────────────────────
   minio:
-    <<: *openaev-common
     image: minio/minio:latest
-    container_name: openaev-minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
+    networks:
+      openaev-net:
+        aliases:
+          - minio
     environment:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}   # ← CHANGE THIS (min 8 chars)
@@ -99,12 +103,12 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
 
-  # MinIO bucket initialiser – runs once then exits
+  # MinIO bucket initialiser - runs once then exits
   minio-init:
     image: minio/mc:latest
-    container_name: openaev-minio-init
     networks:
       - openaev-net
     depends_on:
@@ -121,9 +125,12 @@ services:
   # OpenAEV Platform
   # ─────────────────────────────────────────────────────────────────────────
   openaev:
-    <<: *openaev-common
     image: openaev/platform:latest
-    container_name: openaev
+    restart: unless-stopped
+    networks:
+      openaev-net:
+        aliases:
+          - openaev
     ports:
       - "${APP_PORT}:8080"
     depends_on:
@@ -136,29 +143,27 @@ services:
       minio:
         condition: service_healthy
     environment:
-      # ── Application ────────────────────────────────────────────────────
+      # Application
       APP__ADMIN__EMAIL:    ${APP_ADMIN_EMAIL:-admin@example.com}   # ← CHANGE THIS
       APP__ADMIN__PASSWORD: ${APP_ADMIN_PASSWORD:-changeme}          # ← CHANGE THIS
       APP__ADMIN__TOKEN:    ${APP_ADMIN_TOKEN:-changeme-uuid-token}  # ← CHANGE THIS (use uuidgen)
-      # Optional: set if deployed behind a sub-path (e.g. /openaev)
-      # APP__BASE_PATH: /openaev
 
-      # ── PostgreSQL ──────────────────────────────────────────────────────
+      # PostgreSQL
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-openaev}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-openaev}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
 
-      # ── Elasticsearch ───────────────────────────────────────────────────
+      # Elasticsearch
       ELASTICSEARCH_URL: http://elasticsearch:9200
 
-      # ── RabbitMQ ────────────────────────────────────────────────────────
-      SPRING_RABBITMQ_HOST:     rabbitmq
-      SPRING_RABBITMQ_PORT:     "5672"
-      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-openaev}
-      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-changeme}
+      # RabbitMQ
+      SPRING_RABBITMQ_HOST:        rabbitmq
+      SPRING_RABBITMQ_PORT:        "5672"
+      SPRING_RABBITMQ_USERNAME:    ${RABBITMQ_USER:-openaev}
+      SPRING_RABBITMQ_PASSWORD:    ${RABBITMQ_PASSWORD:-changeme}
       SPRING_RABBITMQ_VIRTUALHOST: openaev
 
-      # ── MinIO / S3 ──────────────────────────────────────────────────────
+      # MinIO / S3
       MINIO_ENDPOINT:    http://minio:9000
       MINIO_ACCESS_KEY:  ${MINIO_ROOT_USER:-openaev}
       MINIO_SECRET_KEY:  ${MINIO_ROOT_PASSWORD:-changeme12345}
@@ -169,7 +174,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 90s
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Volumes
