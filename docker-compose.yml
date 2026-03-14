@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-openaev}
       POSTGRES_USER:     ${POSTGRES_USER:-openaev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}   # ← CHANGE THIS
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -72,7 +72,7 @@ services:
           - rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER:  ${RABBITMQ_USER:-openaev}
-      RABBITMQ_DEFAULT_PASS:  ${RABBITMQ_PASSWORD:-changeme}   # ← CHANGE THIS
+      RABBITMQ_DEFAULT_PASS:  ${RABBITMQ_PASSWORD:-changeme}
       RABBITMQ_DEFAULT_VHOST: openaev
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -96,7 +96,7 @@ services:
           - minio
     environment:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}   # ← CHANGE THIS (min 8 chars)
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
     volumes:
       - minio-data:/data
     healthcheck:
@@ -143,31 +143,32 @@ services:
       minio:
         condition: service_healthy
     environment:
-      # ── Application ─────────────────────────────────────────────────────
-      APP__ADMIN__EMAIL:    ${APP_ADMIN_EMAIL:-admin@example.com}   # ← CHANGE THIS
-      APP__ADMIN__PASSWORD: ${APP_ADMIN_PASSWORD:-changeme}          # ← CHANGE THIS
-      APP__ADMIN__TOKEN:    ${APP_ADMIN_TOKEN:-changeme-uuid-token}  # ← CHANGE THIS
+      # ── Admin (OpenBAS legacy naming) ────────────────────────────────────
+      OPENBAS_ADMIN_EMAIL:           ${OPENBAS_ADMIN_EMAIL:-admin@example.com}
+      OPENBAS_ADMIN_PASSWORD:        ${OPENBAS_ADMIN_PASSWORD:-changeme}
+      OPENBAS_ADMIN_TOKEN:           ${OPENBAS_ADMIN_TOKEN:-changeme-uuid-token}
+      OPENBAS_ADMIN_ENCRYPTION_SALT: ${OPENBAS_ADMIN_ENCRYPTION_SALT:-changeme16chars!}
 
       # ── PostgreSQL ───────────────────────────────────────────────────────
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-openaev}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-openaev}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
 
-      # ── Elasticsearch (correct key is engine.url → ENGINE_URL) ──────────
+      # ── Elasticsearch ────────────────────────────────────────────────────
       ENGINE_URL: ${ENGINE_URL:-http://elasticsearch:9200}
 
-      # ── RabbitMQ ─────────────────────────────────────────────────────────
-      OPENAEV_RABBITMQ_HOSTNAME: ${OPENAEV_RABBITMQ_HOSTNAME:-rabbitmq}
-      OPENAEV_RABBITMQ_PORT: ${OPENAEV_RABBITMQ_PORT:-5672}
-      OPENAEV_RABBITMQ_USER: ${OPENAEV_RABBITMQ_USER:-openaev}
-      OPENAEV_RABBITMQ_PASS: ${OPENAEV_RABBITMQ_PASS:-changeme}
-      OPENAEV_RABBITMQ_VHOST: ${OPENAEV_RABBITMQ_VHOST:-openaev}
+      # ── RabbitMQ (OpenBAS legacy naming) ─────────────────────────────────
+      OPENBAS_RABBITMQ_HOSTNAME: ${OPENBAS_RABBITMQ_HOSTNAME:-rabbitmq}
+      OPENBAS_RABBITMQ_PORT:     ${OPENBAS_RABBITMQ_PORT:-5672}
+      OPENBAS_RABBITMQ_USER:     ${OPENBAS_RABBITMQ_USER:-openaev}
+      OPENBAS_RABBITMQ_PASS:     ${OPENBAS_RABBITMQ_PASS:-changeme}
+      OPENBAS_RABBITMQ_VHOST:    ${OPENBAS_RABBITMQ_VHOST:-openaev}
 
       # ── MinIO / S3 ───────────────────────────────────────────────────────
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_BUCKET: ${MINIO_BUCKET:-openaev}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-openaev}
+      MINIO_ENDPOINT:      ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT:          ${MINIO_PORT:-9000}
+      MINIO_BUCKET:        ${MINIO_BUCKET:-openaev}
+      MINIO_ACCESS_KEY:    ${MINIO_ACCESS_KEY:-openaev}
       MINIO_ACCESS_SECRET: ${MINIO_ACCESS_SECRET:-changeme12345}
 
     healthcheck:
