@@ -115,8 +115,13 @@ services:
       openaev-net:
         aliases:
           - openaev
-    ports:
-      - "${APP_PORT:-8080}:8080"
+      coolify:
+        external: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openaev.rule=Host(`openaev.wekacyber.local`)"
+      - "traefik.http.routers.openaev.entrypoints=http"
+      - "traefik.http.services.openaev.loadbalancer.server.port=8080"
     depends_on:
       pgsql:
         condition: service_healthy
@@ -131,10 +136,12 @@ services:
       OPENAEV_HOST:             ${OPENAEV_HOST:-localhost}
       OPENAEV_PORT:             ${APP_PORT:-8080}
       OPENAEV_EXTERNAL_SCHEME:  ${OPENAEV_EXTERNAL_SCHEME:-http}
-      OPENAEV_ADMIN_EMAIL:      ${OPENAEV_ADMIN_EMAIL:-admin@example.com}
-      OPENAEV_ADMIN_PASSWORD:   ${OPENAEV_ADMIN_PASSWORD:-changeme}
-      OPENAEV_ADMIN_TOKEN:      ${OPENAEV_ADMIN_TOKEN:-changeme-uuid-token}
-      OPENAEV_HEALTHCHECK_KEY:  ${OPENAEV_HEALTHCHECK_KEY:-changeme}
+      OPENAEV_ADMIN_EMAIL:            ${OPENAEV_ADMIN_EMAIL:-admin@example.com}
+      OPENAEV_ADMIN_PASSWORD:         ${OPENAEV_ADMIN_PASSWORD:-changeme}
+      OPENAEV_ADMIN_TOKEN:            ${OPENAEV_ADMIN_TOKEN:-changeme-uuid-token}
+      OPENAEV_ADMIN_ENCRYPTION_KEY:   ${OPENAEV_ADMIN_ENCRYPTION_KEY:-changeme32charslongkeyhere12345}
+      OPENAEV_ADMIN_ENCRYPTION_SALT:  ${OPENAEV_ADMIN_ENCRYPTION_SALT:-changeme8chars}
+      OPENAEV_HEALTHCHECK_KEY:        ${OPENAEV_HEALTHCHECK_KEY:-changeme}
 
       # ── PostgreSQL ───────────────────────────────────────────────────────
       SPRING_DATASOURCE_URL:      jdbc:postgresql://pgsql:5432/${POSTGRES_DB:-openaev}
@@ -145,12 +152,22 @@ services:
       ENGINE_URL: ${ENGINE_URL:-http://elasticsearch:9200}
 
       # ── RabbitMQ ─────────────────────────────────────────────────────────
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-openaev}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-changeme}
+      RABBITMQ_DEFAULT_USER:      ${RABBITMQ_DEFAULT_USER:-openaev}
+      RABBITMQ_DEFAULT_PASS:      ${RABBITMQ_DEFAULT_PASS:-changeme}
+      OPENAEV_RABBITMQ_HOSTNAME:  ${OPENAEV_RABBITMQ_HOSTNAME:-rabbitmq}
+      OPENAEV_RABBITMQ_PORT:      ${OPENAEV_RABBITMQ_PORT:-5672}
+      OPENAEV_RABBITMQ_USER:      ${OPENAEV_RABBITMQ_USER:-openaev}
+      OPENAEV_RABBITMQ_PASS:      ${OPENAEV_RABBITMQ_PASS:-changeme}
+      OPENAEV_RABBITMQ_VHOST:     ${OPENAEV_RABBITMQ_VHOST:-openaev}
 
       # ── MinIO ────────────────────────────────────────────────────────────
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
+      MINIO_ENDPOINT:      ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT:          ${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY:    ${MINIO_ACCESS_KEY:-openaev}
+      MINIO_ACCESS_SECRET: ${MINIO_ACCESS_SECRET:-changeme12345}
+      MINIO_BUCKET:        ${MINIO_BUCKET:-openaev}
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
@@ -174,3 +191,5 @@ volumes:
 networks:
   openaev-net:
     driver: bridge
+  coolify:
+    external: true
