@@ -116,11 +116,6 @@ services:
         aliases:
           - openaev
       coolify:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.openaev.rule=Host(`openaev.wekacyber.local`)"
-      - "traefik.http.routers.openaev.entrypoints=http"
-      - "traefik.http.services.openaev.loadbalancer.server.port=8080"
     depends_on:
       pgsql:
         condition: service_healthy
@@ -157,7 +152,7 @@ services:
       OPENAEV_RABBITMQ_PORT:      ${OPENAEV_RABBITMQ_PORT:-5672}
       OPENAEV_RABBITMQ_USER:      ${OPENAEV_RABBITMQ_USER:-openaev}
       OPENAEV_RABBITMQ_PASS:      ${OPENAEV_RABBITMQ_PASS:-changeme}
-      OPENAEV_RABBITMQ_VHOST:     ${OPENAEV_RABBITMQ_VHOST:-openaev}
+      OPENAEV_RABBITMQ_VHOST:     "/"
 
       # ── MinIO ────────────────────────────────────────────────────────────
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
