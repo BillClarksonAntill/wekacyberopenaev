@@ -116,8 +116,6 @@ services:
         aliases:
           - openaev
       coolify:
-    labels:
-      - "traefik.http.services.openaev.loadbalancer.server.port=8080"
     depends_on:
       pgsql:
         condition: service_healthy
