@@ -1,8 +1,6 @@
 ###############################################################################
 # OpenAEV – Docker Compose for Coolify
-#
-# Fill in every value marked  ← CHANGE THIS  before deploying.
-# All secrets can alternatively be set as Coolify environment variables.
+# Based on official OpenAEV-Platform/docker repository variable names
 ###############################################################################
 
 services:
@@ -10,21 +8,21 @@ services:
   # ─────────────────────────────────────────────────────────────────────────
   # PostgreSQL
   # ─────────────────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:15-alpine
+  pgsql:
+    image: postgres:17-alpine
     restart: unless-stopped
     networks:
       openaev-net:
         aliases:
-          - postgres
+          - pgsql
     environment:
-      POSTGRES_DB:       ${POSTGRES_DB:-openaev}
       POSTGRES_USER:     ${POSTGRES_USER:-openaev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB:       openaev
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - pgsqldata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openaev}"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-openaev}", "-d", "openaev"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,10 +38,11 @@ services:
         aliases:
           - elasticsearch
     environment:
-      discovery.type:         single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS:           "-Xms512m -Xmx512m"
-      cluster.name:           openaev-cluster
+      - discovery.type=single-node
+      - xpack.ml.enabled=false
+      - xpack.security.enabled=false
+      - thread_pool.search.queue_size=5000
+      - "ES_JAVA_OPTS=-Xms${ELASTIC_MEMORY_SIZE:-512m} -Xmx${ELASTIC_MEMORY_SIZE:-512m}"
     ulimits:
       memlock:
         soft: -1
@@ -52,7 +51,7 @@ services:
         soft: 65536
         hard: 65536
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - esdata:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -sf 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
       interval: 20s
@@ -64,32 +63,32 @@ services:
   # RabbitMQ
   # ─────────────────────────────────────────────────────────────────────────
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: rabbitmq:3.13-management
     restart: unless-stopped
     networks:
       openaev-net:
         aliases:
           - rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER:  ${RABBITMQ_USER:-openaev}
-      RABBITMQ_DEFAULT_PASS:  ${RABBITMQ_PASSWORD:-changeme}
-      RABBITMQ_DEFAULT_VHOST: openaev
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-openaev}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-changeme}
+      - RABBITMQ_NODENAME=rabbit01@localhost
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - amqpdata:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 30s
 
   # ─────────────────────────────────────────────────────────────────────────
-  # MinIO  (S3-compatible object storage)
+  # MinIO
   # ─────────────────────────────────────────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    command: server /data
     networks:
       openaev-net:
         aliases:
@@ -98,28 +97,13 @@ services:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
     volumes:
-      - minio-data:/data
+      - s3data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
       start_period: 20s
-
-  # MinIO bucket initialiser - runs once then exits
-  minio-init:
-    image: minio/mc:latest
-    networks:
-      - openaev-net
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-openaev} ${MINIO_ROOT_PASSWORD:-changeme12345} &&
-        mc mb --ignore-existing local/${MINIO_BUCKET:-openaev}
-      "
-    restart: "no"
 
   # ─────────────────────────────────────────────────────────────────────────
   # OpenAEV Platform
@@ -132,9 +116,9 @@ services:
         aliases:
           - openaev
     ports:
-      - "${APP_PORT}:8080"
+      - "${APP_PORT:-8080}:8080"
     depends_on:
-      postgres:
+      pgsql:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
@@ -143,33 +127,30 @@ services:
       minio:
         condition: service_healthy
     environment:
-      # ── Admin (OpenBAS legacy naming) ────────────────────────────────────
-      OPENBAS_ADMIN_EMAIL:           ${OPENBAS_ADMIN_EMAIL:-admin@example.com}
-      OPENBAS_ADMIN_PASSWORD:        ${OPENBAS_ADMIN_PASSWORD:-changeme}
-      OPENBAS_ADMIN_TOKEN:           ${OPENBAS_ADMIN_TOKEN:-changeme-uuid-token}
-      OPENBAS_ADMIN_ENCRYPTION_SALT: ${OPENBAS_ADMIN_ENCRYPTION_SALT:-changeme16chars!}
+      # ── Application ──────────────────────────────────────────────────────
+      OPENAEV_HOST:             ${OPENAEV_HOST:-localhost}
+      OPENAEV_PORT:             ${APP_PORT:-8080}
+      OPENAEV_EXTERNAL_SCHEME:  ${OPENAEV_EXTERNAL_SCHEME:-http}
+      OPENAEV_ADMIN_EMAIL:      ${OPENAEV_ADMIN_EMAIL:-admin@example.com}
+      OPENAEV_ADMIN_PASSWORD:   ${OPENAEV_ADMIN_PASSWORD:-changeme}
+      OPENAEV_ADMIN_TOKEN:      ${OPENAEV_ADMIN_TOKEN:-changeme-uuid-token}
+      OPENAEV_HEALTHCHECK_KEY:  ${OPENAEV_HEALTHCHECK_KEY:-changeme}
 
       # ── PostgreSQL ───────────────────────────────────────────────────────
-      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-openaev}
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://pgsql:5432/openaev
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-openaev}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
 
       # ── Elasticsearch ────────────────────────────────────────────────────
-      ENGINE_URL: ${ENGINE_URL:-http://elasticsearch:9200}
+      ENGINE_URL: http://elasticsearch:9200
 
-      # ── RabbitMQ (OpenBAS legacy naming) ─────────────────────────────────
-      OPENBAS_RABBITMQ_HOSTNAME: ${OPENBAS_RABBITMQ_HOSTNAME:-rabbitmq}
-      OPENBAS_RABBITMQ_PORT:     ${OPENBAS_RABBITMQ_PORT:-5672}
-      OPENBAS_RABBITMQ_USER:     ${OPENBAS_RABBITMQ_USER:-openaev}
-      OPENBAS_RABBITMQ_PASS:     ${OPENBAS_RABBITMQ_PASS:-changeme}
-      OPENBAS_RABBITMQ_VHOST:    ${OPENBAS_RABBITMQ_VHOST:-openaev}
+      # ── RabbitMQ ─────────────────────────────────────────────────────────
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-openaev}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-changeme}
 
-      # ── MinIO / S3 ───────────────────────────────────────────────────────
-      MINIO_ENDPOINT:      ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT:          ${MINIO_PORT:-9000}
-      MINIO_BUCKET:        ${MINIO_BUCKET:-openaev}
-      MINIO_ACCESS_KEY:    ${MINIO_ACCESS_KEY:-openaev}
-      MINIO_ACCESS_SECRET: ${MINIO_ACCESS_SECRET:-changeme12345}
+      # ── MinIO ────────────────────────────────────────────────────────────
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-openaev}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
 
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
@@ -182,10 +163,10 @@ services:
 # Volumes
 # ─────────────────────────────────────────────────────────────────────────────
 volumes:
-  postgres-data:
-  elasticsearch-data:
-  rabbitmq-data:
-  minio-data:
+  pgsqldata:
+  esdata:
+  amqpdata:
+  s3data:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Network
