@@ -18,7 +18,7 @@ services:
     environment:
       POSTGRES_USER:     ${POSTGRES_USER:-openaev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB:       openaev
+      POSTGRES_DB:       ${POSTGRES_DB:-openaev}
     volumes:
       - pgsqldata:/var/lib/postgresql/data
     healthcheck:
@@ -142,7 +142,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
 
       # ── Elasticsearch ────────────────────────────────────────────────────
-      ENGINE_URL: http://elasticsearch:9200
+      ENGINE_URL: ${ENGINE_URL:-http://elasticsearch:9200}
 
       # ── RabbitMQ ─────────────────────────────────────────────────────────
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-openaev}
