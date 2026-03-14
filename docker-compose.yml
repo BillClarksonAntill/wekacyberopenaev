@@ -116,7 +116,6 @@ services:
         aliases:
           - openaev
       coolify:
-        external: true
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.openaev.rule=Host(`openaev.wekacyber.local`)"
