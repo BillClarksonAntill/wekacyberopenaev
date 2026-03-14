@@ -22,7 +22,7 @@ services:
     volumes:
       - pgsqldata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-openaev}", "-d", "openaev"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-openaev}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -137,7 +137,7 @@ services:
       OPENAEV_HEALTHCHECK_KEY:  ${OPENAEV_HEALTHCHECK_KEY:-changeme}
 
       # ── PostgreSQL ───────────────────────────────────────────────────────
-      SPRING_DATASOURCE_URL:      jdbc:postgresql://pgsql:5432/openaev
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://pgsql:5432/${POSTGRES_DB:-openaev}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-openaev}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
 
